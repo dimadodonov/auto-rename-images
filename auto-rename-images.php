@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Auto Rename Uploads to Match Post Slug with Updates
- * Description: Automatically renames uploaded images to match the post slug, adds product title to image alt text, and renames attached images when a product is updated.
+ * Description: Automatically renames uploaded images to match the post slug, adds product title to image alt text, renames attached images when a product is updated, and updates thumbnails accordingly.
  * Author: Dima Dodonov
- * Version: 0.8
+ * Version: 0.9
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -41,7 +41,7 @@ function auto_rename_uploads_to_post_slug( $filename ) {
 
 add_filter( 'sanitize_file_name', 'auto_rename_uploads_to_post_slug', 100 );
 
-// Функция для переименования изображений и добавления alt-текста
+// Функция для переименования изображений, миниатюр и добавления alt-текста
 function auto_rename_and_set_alt_for_image( $image_id ) {
     $file = get_attached_file( $image_id );
 
@@ -89,6 +89,9 @@ function auto_rename_and_set_alt_for_image( $image_id ) {
     if ( rename( $file, $new_file_path ) ) {
         update_attached_file( $image_id, $new_file_path );
         error_log("Auto Rename: Файл успешно переименован в $new_file_path.");
+
+        // Переименование миниатюр
+        auto_rename_image_thumbnails( $image_id, $info['filename'], $new_file_name );
     } else {
         error_log("Auto Rename: Ошибка переименования файла $file в $new_file_path.");
     }
@@ -97,6 +100,27 @@ function auto_rename_and_set_alt_for_image( $image_id ) {
     unset($file);
     unset($info);
     wp_cache_flush();
+}
+
+// Переименование миниатюр
+function auto_rename_image_thumbnails( $image_id, $original_file_name, $new_file_name ) {
+    $upload_dir = wp_upload_dir();
+    $sizes = array('woocommerce_thumbnail', 'woocommerce_single', 'woocommerce_gallery_thumbnail');
+
+    foreach ($sizes as $size) {
+        $thumbnail = wp_get_attachment_image_src( $image_id, $size );
+        if ( $thumbnail && strpos($thumbnail[0], $original_file_name) !== false ) {
+            $thumb_path = str_replace($original_file_name, $new_file_name, $thumbnail[0]);
+            $thumb_file = str_replace(wp_upload_dir()['baseurl'], wp_upload_dir()['basedir'], $thumb_path);
+
+            if ( file_exists($thumb_file) ) {
+                rename($thumbnail[0], $thumb_file);
+                error_log("Auto Rename: Миниатюра для $size успешно переименована в $thumb_file.");
+            } else {
+                error_log("Auto Rename: Миниатюра для $size не найдена: $thumb_file.");
+            }
+        }
+    }
 }
 
 // Функция для обработки всех изображений при обновлении товара
