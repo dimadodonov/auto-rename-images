@@ -3,7 +3,7 @@
  * Plugin Name: Auto Rename Uploads to Match Post Slug with Updates
  * Description: Automatically renames uploaded images to match the post slug, adds product title to image alt text, renames attached images when a product is updated, and updates thumbnails accordingly.
  * Author: Dima Dodonov
- * Version: 1.1
+ * Version: 1.2
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 require_once plugin_dir_path( __FILE__ ) . 'includes/image-renamer.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/content-updater.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/settings.php';
 
 // Настройка задачи Cron
 function setup_image_rename_cron() {
@@ -29,3 +30,11 @@ function remove_image_rename_cron() {
     wp_unschedule_event( $timestamp, 'image_rename_cron_hook' );
 }
 register_deactivation_hook( __FILE__, 'remove_image_rename_cron' );
+
+// Функция для логирования
+function auto_rename_log( $message, $level = 'info' ) {
+    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+        $log_message = strtoupper( $level ) . ': ' . $message;
+        error_log( $log_message );
+    }
+}

@@ -3,6 +3,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly
 }
 
+// Включаем Action Scheduler (если не установлен WooCommerce)
+if ( ! class_exists( 'ActionScheduler' ) ) {
+    require_once plugin_dir_path( __FILE__ ) . '../vendor/action-scheduler/action-scheduler.php';
+}
+
 // Переименование новых изображений при загрузке
 function auto_rename_uploads_to_post_slug( $filename ) {
     $info = pathinfo( $filename );
@@ -33,6 +38,12 @@ function auto_rename_uploads_to_post_slug( $filename ) {
 }
 
 add_filter( 'sanitize_file_name', 'auto_rename_uploads_to_post_slug', 100 );
+
+// Запланируем асинхронное переименование изображений
+function schedule_image_rename_task( $image_id ) {
+    as_schedule_single_action( time(), 'rename_image_action', array( 'image_id' => $image_id ) );
+}
+add_action( 'rename_image_action', 'auto_rename_and_set_alt_for_image' );
 
 // Переименование изображений и миниатюр
 function auto_rename_and_set_alt_for_image( $image_id ) {
@@ -83,6 +94,9 @@ function auto_rename_and_set_alt_for_image( $image_id ) {
         // Переименование миниатюр
         auto_rename_image_thumbnails( $image_id, $info['filename'], $new_file_name );
     }
+
+    // Логируем успешное переименование
+    auto_rename_log( "Image $image_id renamed to $new_file_path", 'info' );
 
     // Освобождаем память
     unset($file);

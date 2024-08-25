@@ -21,13 +21,12 @@ function auto_rename_and_update_images_on_post_save( $post_id ) {
     }
 
     foreach ( $attachments as $attachment ) {
-        auto_rename_and_set_alt_for_image( $attachment->ID );
+        schedule_image_rename_task( $attachment->ID );
     }
 
     // Обновление ссылок на изображения в контенте товара
     auto_update_image_urls_in_content( $post_id );
 }
-add_action( 'save_post', 'auto_rename_and_update_images_on_post_save' );
 
 // Обновление ссылок на изображения в контенте товара
 function auto_update_image_urls_in_content( $post_id ) {
@@ -53,3 +52,4 @@ function auto_update_image_urls_in_content( $post_id ) {
         'post_content' => $post_content,
     ));
 }
+add_action( 'save_post', 'auto_rename_and_update_images_on_post_save' );
