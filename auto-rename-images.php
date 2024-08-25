@@ -3,7 +3,7 @@
  * Plugin Name: Auto Rename Uploads to Match Post Slug with Updates
  * Description: Automatically renames uploaded images to match the post slug, adds product title to image alt text, and renames attached images when a product is updated.
  * Author: Dima Dodonov
- * Version: 0.7
+ * Version: 0.8
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -121,8 +121,35 @@ function auto_rename_and_update_images_on_post_save( $post_id ) {
     foreach ( $attachments as $attachment_id => $attachment ) {
         auto_rename_and_set_alt_for_image( $attachment_id );
     }
+
+    // Обновление ссылок на изображения в контенте товара
+    auto_update_image_urls_in_content( $post_id );
 }
 add_action( 'save_post', 'auto_rename_and_update_images_on_post_save' );
+
+// Функция для обновления ссылок на изображения в контенте товара
+function auto_update_image_urls_in_content( $post_id ) {
+    $post_content = get_post_field( 'post_content', $post_id );
+    $attachments = get_children( array(
+        'post_parent'    => $post_id,
+        'post_type'      => 'attachment',
+        'post_mime_type' => 'image',
+    ));
+
+    foreach ( $attachments as $attachment_id => $attachment ) {
+        $old_url = wp_get_attachment_url( $attachment_id );
+        $new_url = wp_get_attachment_url( $attachment_id );
+
+        // Обновляем все вхождения старого URL на новый в контенте товара
+        $post_content = str_replace( $old_url, $new_url, $post_content );
+    }
+
+    // Сохраняем обновленный контент товара
+    wp_update_post( array(
+        'ID'           => $post_id,
+        'post_content' => $post_content,
+    ));
+}
 
 // Функция для настройки задачи Cron
 function setup_image_rename_cron() {
@@ -150,3 +177,79 @@ function image_rename_cron_function() {
     }
 }
 add_action( 'image_rename_cron_hook', 'image_rename_cron_function' );
+
+// Код для проверки обновлений плагина с использованием JSON
+class Auto_Rename_Updater {
+    private $update_url = 'https://mitroliti.com/path/to/auto_rename_updates.json';
+
+    public function __construct() {
+        add_filter( 'plugins_api', array( $this, 'plugin_info' ), 20, 3 );
+        add_filter( 'site_transient_update_plugins', array( $this, 'push_update' ) );
+        add_action( 'upgrader_process_complete', array( $this, 'after_update' ), 10, 2 );
+    }
+
+    public function plugin_info( $res, $action, $args ) {
+        if ( $action !== 'plugin_information' ) {
+            return $res;
+        }
+
+        if ( $args->slug !== 'auto-rename-images' ) {
+            return $res;
+        }
+
+        $remote = wp_remote_get( $this->update_url, array( 'timeout' => 10 ) );
+
+        if ( ! is_wp_error( $remote ) && wp_remote_retrieve_response_code( $remote ) === 200 ) {
+            $remote = json_decode( wp_remote_retrieve_body( $remote ) );
+            $res = (object) array(
+                'name'          => 'Auto Rename Uploads to Match Post Slug with Updates',
+                'slug'          => 'auto-rename-images',
+                'version'       => $remote->version,
+                'tested'        => $remote->tested,
+                'requires'      => $remote->requires,
+                'download_link' => $remote->download_url,
+                'trunk'         => $remote->download_url,
+                'last_updated'  => current_time( 'mysql' ),
+                'sections'      => array(
+                    'description' => $remote->changelog,
+                ),
+            );
+        }
+
+        return $res;
+    }
+
+    public function push_update( $transient ) {
+        if ( empty( $transient->checked ) ) {
+            return $transient;
+        }
+
+        $remote = wp_remote_get( $this->update_url, array( 'timeout' => 10 ) );
+
+        if ( ! is_wp_error( $remote ) && wp_remote_retrieve_response_code( $remote ) === 200 ) {
+            $remote = json_decode( wp_remote_retrieve_body( $remote ) );
+
+            if ( version_compare( $transient->checked['auto-rename-images/auto-rename-images.php'], $remote->version, '<' ) ) {
+                $res = array(
+                    'slug'        => 'auto-rename-images',
+                    'plugin'      => 'auto-rename-images/auto-rename-images.php',
+                    'new_version' => $remote->version,
+                    'package'     => $remote->download_url,
+                    'url'         => '',
+                );
+
+                $transient->response[ $res['plugin'] ] = (object) $res;
+            }
+        }
+
+        return $transient;
+    }
+
+    public function after_update( $upgrader_object, $options ) {
+        if ( $options['action'] === 'update' && $options['type'] === 'plugin' ) {
+            // Дополнительные действия после обновления, если необходимо
+        }
+    }
+}
+
+new Auto_Rename_Updater();
