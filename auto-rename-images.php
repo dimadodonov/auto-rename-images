@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Auto Rename Uploads to Match Post Slug with Updates
  * Description: Automatically renames uploaded images to match the post slug and also renames attached images when a product is updated.
- * Author: Your Name
+ * Author: Dima Dodonov
  * Version: 0.5
  */
 
